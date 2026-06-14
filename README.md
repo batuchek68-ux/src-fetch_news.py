@@ -1,33 +1,70 @@
-import requests
 import json
+from collections import Counter
+import re
 
-def fetch_news():
-    url = "https://api.gdeltproject.org/api/v2/doc/doc?query=economy&mode=ArtList&format=json"
+def load_news():
+    with open("data/raw_news.json", "r", encoding="utf-8") as f:
+        return json.load(f)
 
-    try:
-        response = requests.get(url, timeout=10)
-        data = response.json()
-    except Exception as e:
-        print("API error:", e)
-        return []
+def clean_text(text):
+    return re.findall(r'\b[a-zA-Z]{4,}\b', text.lower())
 
-    news = []
+def simple_sentiment(text):
+    positive_words = ["rise", "growth", "gain", "positive", "boost", "up"]
+    negative_words = ["fall", "drop", "crisis", "loss", "decline", "war"]
 
-    # 更安全写法（避免结构错误）
-    articles = data.get("articles") or data.get("result") or []
+    text = text.lower()
 
-    for item in articles:
-        news.append({
-            "title": item.get("title", ""),
-            "source": item.get("sourceCountry", ""),
-            "url": item.get("url", ""),
-            "time": item.get("seendate", "")
-        })
+    score = 0
+    for w in positive_words:
+        if w in text:
+            score += 1
+    for w in negative_words:
+        if w in text:
+            score -= 1
 
-    with open("data/raw_news.json", "w", encoding="utf-8") as f:
-        json.dump(news, f, indent=2, ensure_ascii=False)
+    if score > 0:
+        return "positive"
+    elif score < 0:
+        return "negative"
+    return "neutral"
 
-    print(f"Fetched {len(news)} news items")
+def analyze(news):
+    all_words = []
+    sentiment_result = {"positive": 0, "neutral": 0, "negative": 0}
+
+    for item in news:
+        title = item.get("title", "")
+        words = clean_text(title)
+        all_words.extend(words)
+
+        sentiment = simple_sentiment(title)
+        sentiment_result[sentiment] += 1
+
+    top_keywords = Counter(all_words).most_common(10)
+
+    return {
+        "top_keywords": [w for w, _ in top_keywords],
+        "sentiment": sentiment_result,
+        "total_articles": len(news)
+    }
+
+def save(result):
+    with open("output/trend.json", "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+
+def main():
+    news = load_news()
+
+    if not news:
+        print("No news data found")
+        return
+
+    result = analyze(news)
+    save(result)
+
+    print("Trend analysis completed")
+    print(result)
 
 if __name__ == "__main__":
-    fetch_news()
+    main()
