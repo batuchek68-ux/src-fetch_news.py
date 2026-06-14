@@ -1,56 +1,39 @@
 import json
 from collections import Counter
-import re
+
+INPUT_FILE = "data/raw_news.json"
+OUTPUT_FILE = "output/trend.json"
 
 def load_news():
-    with open("data/raw_news.json", "r", encoding="utf-8") as f:
+    with open(INPUT_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def clean_text(text):
-    return re.findall(r'\b[a-zA-Z]{4,}\b', text.lower())
-
-def simple_sentiment(text):
-    positive_words = ["rise", "growth", "gain", "positive", "boost", "up"]
-    negative_words = ["fall", "drop", "crisis", "loss", "decline", "war"]
-
-    text = text.lower()
-
-    score = 0
-    for w in positive_words:
-        if w in text:
-            score += 1
-    for w in negative_words:
-        if w in text:
-            score -= 1
-
-    if score > 0:
-        return "positive"
-    elif score < 0:
-        return "negative"
-    return "neutral"
+def extract_keywords(title):
+    # 非AI版轻量关键词提取（先跑通）
+    stopwords = {"the", "a", "an", "of", "in", "on", "and", "to", "for"}
+    words = title.lower().split()
+    return [w for w in words if w not in stopwords and len(w) > 3]
 
 def analyze(news):
-    all_words = []
-    sentiment_result = {"positive": 0, "neutral": 0, "negative": 0}
+    all_keywords = []
 
     for item in news:
         title = item.get("title", "")
-        words = clean_text(title)
-        all_words.extend(words)
+        all_keywords.extend(extract_keywords(title))
 
-        sentiment = simple_sentiment(title)
-        sentiment_result[sentiment] += 1
+    freq = Counter(all_keywords)
 
-    top_keywords = Counter(all_words).most_common(10)
+    top_keywords = freq.most_common(20)
 
     return {
-        "top_keywords": [w for w, _ in top_keywords],
-        "sentiment": sentiment_result,
-        "total_articles": len(news)
+        "total_news": len(news),
+        "top_keywords": [
+            {"word": k, "count": v} for k, v in top_keywords
+        ]
     }
 
 def save(result):
-    with open("output/trend.json", "w", encoding="utf-8") as f:
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
 
 def main():
@@ -58,13 +41,13 @@ def main():
 
     if not news:
         print("No news data found")
+        save({"error": "empty dataset"})
         return
 
     result = analyze(news)
     save(result)
 
-    print("Trend analysis completed")
-    print(result)
+    print("Analysis done:", len(result["top_keywords"]))
 
 if __name__ == "__main__":
     main()
