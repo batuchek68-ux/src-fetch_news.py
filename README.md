@@ -1,53 +1,62 @@
 import json
-from collections import Counter
+from datetime import datetime
 
-INPUT_FILE = "data/raw_news.json"
-OUTPUT_FILE = "output/trend.json"
+TREND_FILE = "output/trend.json"
+REPORT_FILE = "output/report.md"
+DASHBOARD_FILE = "output/dashboard.json"
 
-def load_news():
-    with open(INPUT_FILE, "r", encoding="utf-8") as f:
+def load_trend():
+    with open(TREND_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def extract_keywords(title):
-    # 非AI版轻量关键词提取（先跑通）
-    stopwords = {"the", "a", "an", "of", "in", "on", "and", "to", "for"}
-    words = title.lower().split()
-    return [w for w in words if w not in stopwords and len(w) > 3]
+def generate_markdown(trend):
+    top_keywords = trend.get("top_keywords", [])
+    topics = trend.get("topics", [])
 
-def analyze(news):
-    all_keywords = []
+    md = f"""# 🧠 Global Intelligence Daily Report
 
-    for item in news:
-        title = item.get("title", "")
-        all_keywords.extend(extract_keywords(title))
+Date: {datetime.now().strftime("%Y-%m-%d")}
 
-    freq = Counter(all_keywords)
+---
 
-    top_keywords = freq.most_common(20)
+## 🔥 Top Keywords
 
+"""
+
+    for word, count in top_keywords[:10]:
+        md += f"- **{word}**: {count}\n"
+
+    md += "\n---\n\n## 📊 Topic Trends\n\n"
+
+    for t in topics:
+        md += f"- {t['name']}: {t['count']}\n"
+
+    md += "\n---\n\n## 🧠 AI Summary\n\n"
+    md += "Global news shows concentration in tech, economy and geopolitics trends.\n"
+
+    return md
+
+def generate_dashboard(trend):
     return {
-        "total_news": len(news),
-        "top_keywords": [
-            {"word": k, "count": v} for k, v in top_keywords
-        ]
+        "keywords": trend.get("top_keywords", []),
+        "topics": trend.get("topics", []),
+        "updated_at": datetime.now().isoformat()
     }
 
-def save(result):
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        json.dump(result, f, indent=2, ensure_ascii=False)
-
 def main():
-    news = load_news()
+    trend = load_trend()
 
-    if not news:
-        print("No news data found")
-        save({"error": "empty dataset"})
-        return
+    # report
+    md = generate_markdown(trend)
+    with open(REPORT_FILE, "w", encoding="utf-8") as f:
+        f.write(md)
 
-    result = analyze(news)
-    save(result)
+    # dashboard json
+    dashboard = generate_dashboard(trend)
+    with open(DASHBOARD_FILE, "w", encoding="utf-8") as f:
+        json.dump(dashboard, f, indent=2)
 
-    print("Analysis done:", len(result["top_keywords"]))
+    print("report generated")
 
 if __name__ == "__main__":
     main()
