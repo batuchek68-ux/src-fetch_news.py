@@ -1,36 +1,45 @@
-import requests
+import feedparser
 import json
+import os
+from datetime import datetime
 
-def fetch_news():
-    url = "https://api.gdeltproject.org/api/v2/doc/doc?query=economy&mode=ArtList&format=json"
+SOURCES = {
+    "google_en": "https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en",
+    "google_cn": "https://news.google.com/rss?hl=zh-CN&gl=CN&ceid=CN:zh-Hans",
+    "hackernews": "https://hnrss.org/frontpage"
+}
 
-    try:
-        response = requests.get(url, timeout=10)
-        data = response.json()
-    except Exception as e:
-        print("API error:", e)
-        return []
+def fetch_rss(url, source):
+    feed = feedparser.parse(url)
+    items = []
 
-    articles = data.get("articles", [])
-
-    news = []
-
-    # ✅ 兼容 dict / list 两种结构
-    if isinstance(articles, dict):
-        articles = articles.values()
-
-    for item in articles:
-        news.append({
-            "title": item.get("title", ""),
-            "source": item.get("sourceCountry", ""),
-            "url": item.get("url", ""),
-            "time": item.get("seendate", "")
+    for e in feed.entries[:50]:
+        items.append({
+            "title": e.get("title", ""),
+            "link": e.get("link", ""),
+            "published": e.get("published", ""),
+            "source": source
         })
+    return items
+
+
+def main():
+    all_items = []
+
+    for name, url in SOURCES.items():
+        all_items.extend(fetch_rss(url, name))
+
+    os.makedirs("data", exist_ok=True)
 
     with open("data/raw_news.json", "w", encoding="utf-8") as f:
-        json.dump(news, f, indent=2, ensure_ascii=False)
+        json.dump({
+            "time": datetime.utcnow().isoformat(),
+            "count": len(all_items),
+            "items": all_items
+        }, f, ensure_ascii=False, indent=2)
 
-    print(f"Fetched {len(news)} news items")
+    print(f"[OK] fetched {len(all_items)} items")
+
 
 if __name__ == "__main__":
-    fetch_news()
+    main()
